@@ -3,10 +3,16 @@ package main
 import (
 	"fmt"
 	"strings"
+	"strconv"
 
 	"github.com/gocolly/colly/v2"
 	"github.com/PuerkitoBio/goquery"
 )
+
+type weeklyMeal struct {
+	weekIndex int
+	dailyMeals []dailyMeal
+}
 
 type dailyMeal struct {
 	weekDay int
@@ -14,16 +20,20 @@ type dailyMeal struct {
 	mealB []string
 }
 
-func getAvailableWeekIndex(domQuery *goquery.Selection) string {
-	availableWeekIndex := "0"
+func getAvailableWeekIndex(domQuery *goquery.Selection) int {
+	weekIndex := "0"
 	domQuery.Find("strong").EachWithBreak(func(_ int, s *goquery.Selection) bool {
 		content := strings.TrimSpace(s.Text())
 		if len(content) > 0 {
-			availableWeekIndex = content
+			weekIndex = content
 			return false
 		}
 		return true
 	})
+	availableWeekIndex, err := strconv.Atoi(weekIndex)
+    if err != nil {
+        availableWeekIndex = 0
+    }
 	return availableWeekIndex
 }
 
@@ -37,7 +47,7 @@ func stringInArray(a string, list []string) bool {
 }
 
 func buildWeeklyMealStructArray(domQuery *goquery.Selection) []dailyMeal {
-	weeklyMeal := []dailyMeal{}
+	dailyMeals := []dailyMeal{}
 	domQuery.Find("table").First().Find("tr").Next().Each(func(i int, tr *goquery.Selection) {
 		actualDailyMeal := dailyMeal{ weekDay: i }
 		tr.Find("td").Next().EachWithBreak(func(j int, td *goquery.Selection) bool {
@@ -61,24 +71,27 @@ func buildWeeklyMealStructArray(domQuery *goquery.Selection) []dailyMeal {
 			}
 			return true
 		})
-		weeklyMeal = append(weeklyMeal, actualDailyMeal)
+		dailyMeals = append(dailyMeals, actualDailyMeal)
 	})
-	for _, s := range weeklyMeal {
+	for _, s := range dailyMeals {
 		fmt.Printf("%#v\n",s)
 	}
-	return weeklyMeal
+	return dailyMeals
 }
 
-func fetchMeals() []dailyMeal {
+func fetchMeals() weeklyMeal {
 	weeklyMealStructArray := []dailyMeal{}
+	weeklyMealsStruct := weeklyMeal{}
 	c := colly.NewCollector(colly.DetectCharset())
 	c.OnHTML(".feedboxbody", func(feedboxbody *colly.HTMLElement) {
 		doc := feedboxbody.DOM
 		
 		availableWeekIndex := getAvailableWeekIndex(doc)
+		weeklyMealsStruct.weekIndex = availableWeekIndex
 		fmt.Println(availableWeekIndex)
 		weeklyMealStructArray = buildWeeklyMealStructArray(doc)
+		weeklyMealsStruct.dailyMeals = weeklyMealStructArray
 	})
 	c.Visit("http://tajfunbiliard.hu/?page=25")
-	return weeklyMealStructArray
+	return weeklyMealsStruct
 }

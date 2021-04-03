@@ -4,6 +4,7 @@ import (
     "fmt"
 	"time"
     "io/ioutil"
+	"strconv"
 
     "github.com/getlantern/systray"
 	"github.com/go-co-op/gocron"
@@ -24,15 +25,29 @@ func getWeekDayIndex() int {
 
 func initScheduler() {
 	s := gocron.NewScheduler(time.UTC)
-	s.Every(1).Seconds().Do(updateMenu)
+	s.Every(1).Hours().Do(updateMenu)
 	s.StartAsync()
 	s.RunAll()
 }
 
+func getWeekStatusString(actualWeek int, availableWeek int) string {
+	actualWeekStatus := strconv.Itoa(actualWeek)
+	availableWeekStatus := strconv.Itoa(availableWeek)
+	if actualWeek < availableWeek {
+		actualWeekStatus = actualWeekStatus + ". -> " + availableWeekStatus + ". hét"
+	} else {
+		actualWeekStatus = actualWeekStatus + ". hét"
+	}
+	return actualWeekStatus
+}
+
 func updateMenu() {
+	meals := fetchMeals()
+	menu := meals.dailyMeals
+	availableWeekIndex := meals.weekIndex
+	_, actualWeekIndex := time.Now().ISOWeek()
+	systray.SetTooltip("Tájfun Étterem Menü" + " " + getWeekStatusString(actualWeekIndex, availableWeekIndex))
 	weekdayIndex := getWeekDayIndex()
-	systray.SetTooltip("Tájfun Étterem Menü" + " " + time.Now().Format(time.RFC3339))
-	menu := fetchMeals()
 	dailyMenu := menu[weekdayIndex]
     
 	if len(dailyMenu.mealA) > 0 {
@@ -54,11 +69,14 @@ func main() {
 }
 
 func onReady() {
+	systray.SetTemplateIcon(iconImageByteData, iconImageByteData)
+	meals := fetchMeals()
+	menu := meals.dailyMeals
+	availableWeekIndex := meals.weekIndex
+	_, actualWeekIndex := time.Now().ISOWeek()
+	systray.SetTooltip("Tájfun Étterem Menü" + " " + getWeekStatusString(actualWeekIndex, availableWeekIndex))
 	weekdayIndex := getWeekDayIndex()
-	menu := fetchMeals()
 	dailyMenu := menu[weekdayIndex]
-    systray.SetTemplateIcon(iconImageByteData, iconImageByteData)
-    systray.SetTooltip("Tájfun Étterem Menü")
 
 	aMealMenu := systray.AddMenuItem("A menü", "")
 	if len(dailyMenu.mealA) > 0 {
